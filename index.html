@@ -161,6 +161,7 @@
           <div class="head"><h3>Cluster profiles</h3><span class="eyebrow">Demand relative to 91-day median</span></div>
           <div class="tw"><table id="tb-cl"></table></div>
           <p class="small muted" id="cl-note"></p>
+          <p class="small muted">* LRT and Kapal were not used to form the clusters (small, leisure-driven volumes); their columns show how they behave on each day type. Anomaly chart: triangles are days beyond +300 %, mostly Bus Sekolah school days right after a school holiday; hover shows the real value.</p>
           <p class="small muted">Blank cells in the calendar are days without a complete five-mode profile (the first and last weeks of the rolling baseline, and days with a zero Bus Sekolah count on record).</p>
         </div>
         <div class="panel c5">
@@ -193,6 +194,7 @@
         <div class="panel c12">
           <div class="head"><h3>Baseline scoreboard</h3><span class="eyebrow">MAPE %, lower is better</span></div>
           <div class="tw"><table id="tb-base"></table></div>
+          <p class="small muted">Bus Sekolah, Airport Rail and Kapal are small and irregular. Bus Sekolah percentage errors are very large because weekend and school-holiday days carry only a few hundred passengers, so a small miss in passengers is a huge miss in percent; read its errors as a ranking of models, not as accuracy.</p>
         </div>
         <div class="panel c6">
           <div class="head"><h3>Autocorrelation and stationarity</h3><span class="eyebrow">Daily series, 2024 to 2026</span></div>
@@ -292,6 +294,28 @@
           <div class="tw"><table id="tb-pj-year"></table></div>
         </div>
         <div class="panel c12">
+          <div class="head"><h3>Compare the projections</h3><span class="eyebrow">Every scenario and every mode side by side</span></div>
+          <div class="filters" style="border:0;padding:0 0 8px">
+            <div class="fgroup"><span class="flabel">Year</span><select id="pj-cmp-year" aria-label="Projected year"></select></div>
+            <div class="fgroup"><span class="flabel">Measure</span><select id="pj-cmp-meas" aria-label="Measure">
+              <option value="chg">Change vs previous year</option><option value="vs25">Change vs 2025 (last full actual year)</option><option value="mean">Mean daily passengers</option></select></div>
+          </div>
+          <p class="small muted" id="pj-cmp-note"></p>
+        </div>
+        <div class="panel c6">
+          <div class="head"><h3 id="pj-cmp-scen-title">Scenarios for one mode</h3><span class="eyebrow">Monthly mean of daily passengers, median path and 80 % of paths</span></div>
+          <div class="chart" id="ch-pj-cmp-scen"></div>
+        </div>
+        <div class="panel c6">
+          <div class="head"><h3 id="pj-cmp-mode-title">Modes under one scenario</h3><span class="eyebrow">Median path, indexed: average month of the last 12 actual months = 100</span></div>
+          <div class="chart" id="ch-pj-cmp-mode"></div>
+        </div>
+        <div class="panel c12">
+          <div class="head"><h3 id="pj-cmp-bar-title">Projected change by mode and scenario</h3><span class="eyebrow">Median and 95 % interval of simulated paths</span></div>
+          <div class="chart" id="ch-pj-cmp-bar"></div>
+          <div class="tw"><table id="tb-pj-cmp-all"></table></div>
+        </div>
+        <div class="panel c12">
           <div class="head"><h3>Removed vs filled empty days</h3><span class="eyebrow">Baseline scenario, same random numbers for both</span></div>
           <p class="small muted" id="pj-miss-note"></p>
           <div class="chart short" id="ch-pj-filled"></div>
@@ -300,6 +324,7 @@
         <div class="panel c12">
           <div class="head"><h3>Backtest</h3><span class="eyebrow">Fit to 30 Nov 2025, simulate Jan to Jun 2026, compare with what happened</span></div>
           <div class="tw"><table id="tb-pj-bt"></table></div>
+          <p class="small muted">Bus Sekolah, Airport Rail and Kapal are small and irregular. Bus Sekolah percentage errors are very large because weekend and school-holiday days carry only a few hundred passengers, so a small miss in passengers is a huge miss in percent; read its errors as a ranking of models, not as accuracy.</p>
         </div>
         <div class="panel c12">
           <div class="head"><h3>The fitted model behind the simulation</h3><span class="eyebrow">Log-linear regression per mode, empty days as chosen above</span></div>
@@ -334,7 +359,7 @@
           <div class="head"><h3>All effects by mode</h3><span class="eyebrow">% change in daily passengers; bold = significant at 5%</span></div>
           <div class="tw"><table id="tb-eff"></table></div>
         </div>
-        <div class="panel c6">
+        <div class="panel c12">
           <div class="head"><h3>Forecast accuracy with outside data</h3><span class="eyebrow">MAPE %, Jan to Jun 2026, 7-day-ahead GBM</span></div>
           <div class="tw"><table id="tb-extfc"></table></div>
           <p class="small muted">"Observed weather" uses the measured weather of each test day, which assumes a perfect weather forecast.</p>
