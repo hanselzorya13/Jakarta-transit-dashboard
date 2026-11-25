@@ -185,7 +185,8 @@ function renderPatterns() {
   const clt = byMode(D.clusters, "cluster_name");
   const cell = (v) => `<span class="pill ${v > 1.02 ? "good" : v < .5 ? "bad" : v < .9 ? "warn" : "info"}">${v.toFixed(2)}</span>`;
   table("#tb-cl", [{ h: "Day type", f: (r) => `<span class="sw" style="background:${clc(r.n)}"></span>${r.n}` }, { h: "Days", num: 1, f: (r) => r.days }, { h: "Weekend", num: 1, f: (r) => Math.round(r.weekend_share * 100) + "%" },
-    { h: "TJ", num: 1, f: (r) => cell(r.TransJakarta) }, { h: "KRL", num: 1, f: (r) => cell(r.KRL) }, { h: "MRT", num: 1, f: (r) => cell(r.MRT) }, { h: "Bus Sekolah", num: 1, f: (r) => cell(r["Bus Sekolah"]) }, { h: "Airport Rail", num: 1, f: (r) => cell(r["Airport Rail"]) }],
+    { h: "TJ", num: 1, f: (r) => cell(r.TransJakarta) }, { h: "KRL", num: 1, f: (r) => cell(r.KRL) }, { h: "MRT", num: 1, f: (r) => cell(r.MRT) }, { h: "Bus Sekolah", num: 1, f: (r) => cell(r["Bus Sekolah"]) }, { h: "Airport Rail", num: 1, f: (r) => cell(r["Airport Rail"]) },
+    ...["LRT", "Kapal"].filter((k) => clt[CL[0]] && clt[CL[0]][k] != null).map((k) => ({ h: `${k} *`, num: 1, f: (r) => cell(r[k]) }))],
     CL.map((n) => Object.assign({ n }, clt[n])));
   $("#cl-note").textContent = `k = 3 chosen: silhouette ${D.sil["3"].toFixed(2)} (k = 2 scores ${D.sil["2"].toFixed(2)} but only splits work from non-work days; k = 4 splits off 3 outlier days).`;
   const c = D.corr;
@@ -196,9 +197,12 @@ function renderPatterns() {
   const [a, b] = periodRange();
   let A = D.anomalies.filter((r) => r.date >= a && r.date <= b);
   A = A.filter((r) => f === "all" || (f === "hol" && r.holiday) || (f === "nonhol" && !r.holiday) || (f === "pos" && r.rel_resid > 0));
-  const am = ["TJ + Mikrotrans", "KRL", "MRT", "LRT"];
-  plot("#ch-anom", am.map((m) => { const r = A.filter((x) => x.mode === m); return { type: "scatter", mode: "markers", name: m, x: r.map((x) => x.date), y: r.map((x) => x.rel_resid * 100), marker: { size: 8, color: col(m), line: { color: css("--surface"), width: 2 } }, text: r.map((x) => x.holiday || "No holiday"), hovertemplate: `<b>${m}</b> %{x|%d %b %Y}<br>%{y:+.0f}% vs expected<br>%{text}<extra></extra>` }; }),
-    baseLayout({ yaxis: Object.assign(baseLayout().yaxis, { ticksuffix: "%", title: { text: "vs expected", font: { size: 11 } } }) }));
+  const am = ["TJ + Mikrotrans", "KRL", "MRT", "LRT", "Bus Sekolah", "Airport Rail", "Kapal"];
+  const CAP = 300;   // a few Bus Sekolah days after school holidays are +1,000 % or more; drawn at the cap as triangles
+  plot("#ch-anom", am.map((m) => { const r = A.filter((x) => x.mode === m); return { type: "scatter", mode: "markers", name: m, x: r.map((x) => x.date), y: r.map((x) => Math.min(x.rel_resid * 100, CAP)),
+    marker: { size: 8, color: col(m), symbol: r.map((x) => x.rel_resid * 100 > CAP ? "triangle-up" : "circle"), line: { color: css("--surface"), width: 2 } },
+    customdata: r.map((x) => [x.rel_resid * 100, x.holiday || "No holiday"]), hovertemplate: `<b>${m}</b> %{x|%d %b %Y}<br>%{customdata[0]:+.0f}% vs expected<br>%{customdata[1]}<extra></extra>` }; }),
+    baseLayout({ yaxis: Object.assign(baseLayout().yaxis, { ticksuffix: "%", range: [-110, CAP + 20], title: { text: "vs expected", font: { size: 11 } } }) }));
   table("#tb-anom", [{ h: "Date", k: "date" }, { h: "Day", k: "weekday" }, { h: "Series", f: (r) => sw(r.mode) }, { h: "Passengers", num: 1, f: (r) => fmt(r.passengers) },
     { h: "vs expected", num: 1, f: (r) => `<span class="pill ${r.rel_resid < 0 ? "bad" : "info"}">${pct(r.rel_resid * 100, 0)}</span>` }, { h: "Holiday", f: (r) => esc(r.holiday || "") }], A);
 }
@@ -280,7 +284,7 @@ function renderQuality() {
 function renderExternal() {
   const E = D.external;
   if (!E) { $("#external .intro p").textContent = "Run external_factors.py to add this tab's data."; return; }
-  const EM = ["TJ + Mikrotrans", "KRL", "MRT", "LRT", "Airport Rail", "Kapal"];
+  const EM = ["TJ + Mikrotrans", "KRL", "MRT", "LRT", "Bus Sekolah", "Airport Rail", "Kapal"].filter((m) => E.fit.some((r) => r.mode === m));
   const eff = (m, f) => E.effects.find((r) => r.mode === m && r.factor === f);
   const fit = Object.fromEntries(E.fit.map((r) => [r.mode, r]));
   const fc = (m, f) => E.forecast.find((r) => r.mode === m && r.features === f);
@@ -303,7 +307,7 @@ function renderExternal() {
   plot("#ch-rainm", [{ type: "bar", name: "Rainfall", x: RM.dates, y: RM.rain, marker: { color: css("--accent") }, hovertemplate: "%{x}<br>%{y:.0f} mm<extra></extra>" }],
     baseLayout({ showlegend: false, yaxis: Object.assign(baseLayout().yaxis, { ticksuffix: " mm" }) }));
   const ev = E.event;
-  plot("#ch-event", ["TJ + Mikrotrans", "MRT", "KRL", "LRT"].map((m) => { const r = ev.filter((x) => x.mode === m); return { type: "scatter", mode: "lines+markers", name: m, x: r.map((x) => x.date), y: r.map((x) => x.ratio), line: { color: col(m), width: 1.6 }, marker: { size: 4 }, hovertemplate: `<b>${m}</b> %{x|%a %d %b}<br>%{y:.2f} × baseline<extra></extra>` }; }),
+  plot("#ch-event", ["TJ + Mikrotrans", "MRT", "KRL", "LRT", "Bus Sekolah", "Airport Rail", "Kapal"].filter((m) => ev.some((x) => x.mode === m)).map((m) => { const r = ev.filter((x) => x.mode === m); return { type: "scatter", mode: "lines+markers", name: m, x: r.map((x) => x.date), y: r.map((x) => x.ratio), line: { color: col(m), width: 1.6 }, marker: { size: 4 }, hovertemplate: `<b>${m}</b> %{x|%a %d %b}<br>%{y:.2f} × baseline<extra></extra>` }; }),
     baseLayout({ hovermode: "x unified", shapes: [
       { type: "rect", x0: "2025-08-29", x1: "2025-09-01", yref: "paper", y0: 0, y1: 1, fillcolor: css("--bad"), opacity: .12, line: { width: 0 }, layer: "below" },
       { type: "rect", x0: "2025-09-01", x1: "2025-09-08", yref: "paper", y0: 0, y1: 1, fillcolor: css("--good"), opacity: .10, line: { width: 0 }, layer: "below" },
@@ -316,7 +320,7 @@ function renderExternal() {
     [...facs.map((f) => ({ f })), ]);
   $("#tb-eff").insertAdjacentHTML("beforeend", "<tbody><tr><td><i>R² calendar only → with outside data</i></td>" + EM.map((m) => `<td class="num">${fit[m].r2_calendar_only.toFixed(2)} → <b>${fit[m].r2_with_external.toFixed(2)}</b></td>`).join("") + "</tr></tbody>");
   const sets = ["Calendar + lags (v1)", "+ Ramadan, Lebaran, school calendar", "+ calendars + observed weather", "+ calendars + promo fare days"].filter((x) => fc("KRL", x));
-  const FM = ["TJ + Mikrotrans", "KRL", "MRT", "LRT", "Kapal"];
+  const FM = ["TJ + Mikrotrans", "KRL", "MRT", "LRT", "Bus Sekolah", "Airport Rail", "Kapal"].filter((m) => fc(m, sets[0]));
   const bestF = Object.fromEntries(FM.map((m) => [m, Math.min(...sets.map((s) => fc(m, s).MAPE_all))]));
   table("#tb-extfc", [{ h: "Features", f: (r) => esc(r.s) }, ...FM.map((m) => ({ h: m, num: 1, f: (r) => { const v = fc(m, r.s).MAPE_all; return v === bestF[m] ? `<span class="pill good">${v.toFixed(1)}</span>` : v.toFixed(1); } }))], sets.map((s) => ({ s })));
   table("#tb-extan", [{ h: "Explanation", k: "explanation" }, { h: "Days", num: 1, k: "days" }, { h: "Share", num: 1, f: (r) => r.share_pct.toFixed(0) + "%" }], E.anomaly);
@@ -411,6 +415,73 @@ function renderProjection() {
   table("#tb-pj-bt", [{ h: "Mode", f: (r) => sw(r.mode) }, { h: "Simulation MAPE", num: 1, f: (r) => r.MAPE_median_path.toFixed(1) + "%" }, { h: "Holt-Winters MAPE", num: 1, f: (r) => r.HW_MAPE_ch4 == null ? "–" : r.HW_MAPE_ch4.toFixed(1) + "%" },
     { h: "Actual inside 80 % band", num: 1, f: (r) => r.coverage_80pct.toFixed(0) + "%" }, { h: "Actual inside 95 % band", num: 1, f: (r) => `<span class="pill ${r.coverage_95pct >= 90 ? "good" : "warn"}">${r.coverage_95pct.toFixed(0)}%</span>` },
     { h: "Actual total", num: 1, f: (r) => fmt(r.actual_total_M, 1) + " M" }, { h: "Simulated total (95 %)", num: 1, f: (r) => `${fmt(r.sim_total_p50_M, 1)} M<div class="small muted">${fmt(r.sim_total_p2_5_M, 1)} to ${fmt(r.sim_total_p97_5_M, 1)}</div>` }], BT);
+  renderProjCompare(P, m, sc, miss);
+}
+
+// Compare the projections: scenarios for one mode, modes under one scenario, and every mode x scenario
+const SC_COL = { baseline: "--ink", no_growth: "--s-krl", high_disruption: "--s-mrt" };
+const SC_LAB = { baseline: "Baseline", no_growth: "No growth", high_disruption: "High disruption" };
+function renderProjCompare(P, m, sc, miss) {
+  const v = miss === "drop" ? "drop" : "fill";
+  const scens = Object.keys(P.scenarios).filter((s) => P.runs[`${v}|${s}`]);
+  const simYears = [...new Set(P.yearly.filter((r) => r.source !== "actual").map((r) => r.year))].sort();
+  const ys = $("#pj-cmp-year");
+  if (!ys.options.length) { simYears.forEach((y) => ys.add(new Option(String(y), String(y)))); ys.value = String(simYears[simYears.length - 1]); }
+  const yr = +ys.value, meas = $("#pj-cmp-meas").value;
+  const Yr = (mo, s, y) => P.yearly.find((r) => r.missing === v && r.scenario === s && r.mode === mo && r.year === y);
+  $("#pj-cmp-note").innerHTML = `All three scenarios use the same random numbers, so the gaps between them come from the scenario alone. Empty days: <b>${MISS_LAB[v].toLowerCase()}</b>. ` +
+    scens.map((s) => `<b>${SC_LAB[s] || s}</b>: ${esc(P.scenarios[s])}.`).join(" ");
+  // (1) scenarios for the selected mode, monthly
+  const H = P.history[m].M, tr = [{ type: "scatter", mode: "lines", name: "Actual", x: H.x, y: H.y, line: { color: css("--ink-3"), width: 2 }, hovertemplate: "%{x|%b %Y}<br>Actual %{y:,.0f}<extra></extra>" }];
+  scens.forEach((s) => {
+    const R = P.runs[`${v}|${s}`][m].M, c = css(SC_COL[s] || "--accent");
+    tr.push({ type: "scatter", mode: "lines", x: R.x, y: R.p90, line: { width: 0 }, hoverinfo: "skip", showlegend: false, legendgroup: s });
+    tr.push({ type: "scatter", mode: "lines", x: R.x, y: R.p10, fill: "tonexty", fillcolor: hexA(c, .12), line: { width: 0 }, hoverinfo: "skip", showlegend: false, legendgroup: s });
+    tr.push({ type: "scatter", mode: "lines", name: SC_LAB[s] || s, legendgroup: s, x: R.x, y: R.p50, line: { color: c, width: 2, dash: s === "no_growth" ? "dash" : s === "high_disruption" ? "dot" : "solid" },
+      customdata: R.x.map((_, i) => [R.p10[i], R.p90[i]]), hovertemplate: `<b>${SC_LAB[s] || s}</b> %{x|%b %Y}<br>Median %{y:,.0f}<br>80 %: %{customdata[0]:,.0f} to %{customdata[1]:,.0f}<extra></extra>` });
+  });
+  plot("#ch-pj-cmp-scen", tr, baseLayout({ hovermode: "closest", yaxis: { gridcolor: css("--line"), zeroline: false, tickformat: "~s", rangemode: "tozero" },
+    shapes: [{ type: "line", x0: P.data_end, x1: P.data_end, yref: "paper", y0: 0, y1: 1, line: { color: css("--ink-3"), width: 1, dash: "dot" } }] }));
+  $("#pj-cmp-scen-title").textContent = `${m}: the scenarios compared`;
+  // (2) modes under the selected scenario, indexed to the last actual month
+  const R0 = P.runs[`${v}|${sc}`];
+  plot("#ch-pj-cmp-mode", P.modes.map((mo) => {
+    const h = P.history[mo].M, last12 = h.y.slice(-12), base = last12.reduce((a, b) => a + b, 0) / last12.length, R = R0[mo].M;
+    const x = R.x, y = R.p50.map((q) => q / base * 100);
+    return { type: "scatter", mode: "lines", name: mo, x, y, line: { color: col(mo === "TJ + Mikrotrans" ? "TransJakarta" : mo), width: 2 },
+      hovertemplate: `<b>${mo}</b> %{x|%b %Y}<br>Index %{y:.0f}<extra></extra>` };
+  }), baseLayout({ hovermode: "closest", yaxis: { gridcolor: css("--line"), zeroline: false, title: { text: "Index (last 12 months = 100)", font: { size: 11 } } },
+    shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: 100, y1: 100, line: { color: css("--ink-3"), width: 1, dash: "dot" } }] }));
+  $("#pj-cmp-mode-title").textContent = `All modes, ${SC_LAB[sc] || sc} scenario`;
+  // (3) every mode x scenario for the chosen year and measure
+  const val = (mo, s) => {
+    const r = Yr(mo, s, yr); if (!r) return null;
+    if (meas === "mean") return [r.mean_daily_p50, r.mean_daily_p2_5, r.mean_daily_p97_5];
+    if (meas === "chg") return [r.change_vs_prev_year_pct_p50, r.change_vs_prev_year_pct_p2_5, r.change_vs_prev_year_pct_p97_5];
+    const b = Yr(mo, s, 2025); if (!b) return null;
+    return [r.mean_daily_p50, r.mean_daily_p2_5, r.mean_daily_p97_5].map((q) => (q / b.mean_daily_p50 - 1) * 100);
+  };
+  const isPct = meas !== "mean";
+  plot("#ch-pj-cmp-bar", scens.map((s) => {
+    const V = P.modes.map((mo) => val(mo, s) || [null, null, null]);
+    return { type: "bar", name: SC_LAB[s] || s, x: P.modes, y: V.map((q) => q[0]), marker: { color: css(SC_COL[s] || "--accent") },
+      error_y: { type: "data", symmetric: false, array: V.map((q) => q[2] - q[0]), arrayminus: V.map((q) => q[0] - q[1]), color: css("--ink-3"), thickness: 1, width: 3 },
+      customdata: V.map((q) => [q[1], q[2]]),
+      hovertemplate: isPct ? `<b>%{x}</b>, ${SC_LAB[s] || s}<br>%{y:+.1f}% (95 %: %{customdata[0]:+.1f}% to %{customdata[1]:+.1f}%)<extra></extra>`
+                           : `<b>%{x}</b>, ${SC_LAB[s] || s}<br>%{y:,.0f} per day (95 %: %{customdata[0]:,.0f} to %{customdata[1]:,.0f})<extra></extra>` };
+  }), baseLayout({ barmode: "group", bargap: .25, bargroupgap: .08, yaxis: Object.assign(baseLayout().yaxis, isPct ? { ticksuffix: "%", zeroline: true, zerolinecolor: css("--ink-3") } : { type: "log", tickformat: "~s", title: { text: "per day (log scale)", font: { size: 11 } } }) }));
+  $("#pj-cmp-bar-title").textContent = `${{ chg: `${yr} vs ${yr - 1}`, vs25: `${yr} vs 2025`, mean: `Mean daily passengers in ${yr}` }[meas]}, by mode and scenario`;
+  const cell = (mo, s) => {
+    const q = val(mo, s); if (!q || q[0] == null) return "–";
+    const t = isPct ? pct(q[0]) : fmt(q[0]); const rng = isPct ? `${pct(q[1])} to ${pct(q[2])}` : `${fmt(q[1])} to ${fmt(q[2])}`;
+    return `${t}<div class="small muted">${rng}</div>`;
+  };
+  const diff = (mo, s) => { const a = Yr(mo, s, yr), b = Yr(mo, "baseline", yr); return a && b ? (a.mean_daily_p50 / b.mean_daily_p50 - 1) * 100 : null; };
+  table("#tb-pj-cmp-all", [{ h: "Mode", f: (r) => sw(r.mo) },
+    ...scens.map((s) => ({ h: SC_LAB[s] || s, num: 1, f: (r) => cell(r.mo, s) })),
+    ...scens.filter((s) => s !== "baseline").map((s) => ({ h: `${SC_LAB[s] || s} vs baseline`, num: 1, f: (r) => { const d = diff(r.mo, s); return d == null ? "–" : pct(d); } })),
+    { h: "Chance of growth (baseline)", num: 1, f: (r) => { const q = Yr(r.mo, "baseline", yr); return q && q.prob_growth_pct != null ? q.prob_growth_pct.toFixed(0) + "%" : "–"; } },
+  ], P.modes.map((mo) => ({ mo })));
 }
 
 // ---------------- RAW DATA BY YEAR tab
@@ -649,7 +720,7 @@ $("#reset").addEventListener("click", () => { const t = S.tab; S = JSON.parse(JS
 ["#gran", "#scale", "#holmark"].forEach((s) => $(s).addEventListener("change", renderTrends));
 $("#an-filter").addEventListener("change", renderPatterns);
 $("#fc-mode").addEventListener("change", renderModel);
-["#pj-mode", "#pj-scen", "#pj-miss", "#pj-gran"].forEach((s) => $(s).addEventListener("change", renderProjection));
+["#pj-mode", "#pj-scen", "#pj-miss", "#pj-gran", "#pj-cmp-year", "#pj-cmp-meas"].forEach((s) => $(s).addEventListener("change", renderProjection));
 ["#rw-mode", "#rw-src", "#rw-gran", "#rw-view"].forEach((s) => $(s).addEventListener("change", renderRaw));
 ["#ts-cv-mode", "#ts-bp-series", "#ts-boot-q", "#ts-dunn-mode"].forEach((s) => $(s).addEventListener("change", renderTests));
 $("#flag-mode").addEventListener("change", renderQuality);
